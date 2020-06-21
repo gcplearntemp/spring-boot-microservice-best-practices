@@ -189,27 +189,15 @@ jobs:
             git config --global user.email "circliuser@gmail.com"
             git config --global user.name "circleci"
             echo "set remote traking"
-            git branch --set-upstream-to=origin/${CIRCLE_BRANCH} ${CIRCLE_BRANCH}
-            echo "pull latest changes"
-            git pull
             git fetch origin
-            git rebase master
-            echo "Rebasing the master succeeded...."
-            log_message=$(git log -1)
-            echo "checkout master...."
+            echo "checkout a new local branch"
+            git checkout -b ${CIRCLE_BRANCH} origin/${CIRCLE_BRANCH}
+            git merge master
             git checkout master
-            echo "do git pull"
-            git pull origin master
-            echo "squash and merge ${CIRCLE_BRANCH} to master ...."
-            git merge "${CIRCLE_BRANCH}" --squash
-            echo "commit the changes"
-            git commit
-            echo "push the changes"
-            git push
-            echo "delete pull request branch ${CIRCLE_BRANCH}"
-            git push --delete origin "${CIRCLE_BRANCH}"
-            echo "PR merged successfully..."
-
+            echo "merging the branch to master"
+            git merge --no-ff ${CIRCLE_BRANCH}
+            git push origin master
+            echo "completes..."
   helm_deploy:
     executor: helm
     parameters:
