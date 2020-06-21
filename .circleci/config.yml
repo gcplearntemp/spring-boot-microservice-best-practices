@@ -182,7 +182,7 @@ jobs:
       - checkout
       - add_ssh_keys:
           fingerprints:
-            - "d5:7f:d5:fe:a0:6c:44:a1:4f:58:ed:d4:f9:bc:43:a3"
+            - "18:cf:81:68:07:c3:a7:9a:e3:cf:07:6e:04:68:30:1b"
       - run:
           name: Merging Pull request automatically
           command: |
