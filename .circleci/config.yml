@@ -180,6 +180,9 @@ jobs:
     executor: base-jdk8
     steps:
       - checkout
+      - add_ssh_keys:
+          fingerprints:
+            - "d5:7f:d5:fe:a0:6c:44:a1:4f:58:ed:d4:f9:bc:43:a3"
       - run:
           name: Merging Pull request automatically
           command: |
