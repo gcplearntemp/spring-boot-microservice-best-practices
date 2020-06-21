@@ -191,7 +191,7 @@ jobs:
             echo "set remote traking"
             git fetch origin
             echo "checkout a new local branch"
-            git checkout -b ${CIRCLE_BRANCH} origin/${CIRCLE_BRANCH}
+            git branch --set-upstream-to=origin/${CIRCLE_BRANCH} ${CIRCLE_BRANCH}
             git merge master
             git checkout master
             echo "merging the branch to master"
