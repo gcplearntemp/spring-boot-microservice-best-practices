@@ -186,8 +186,6 @@ jobs:
             #!/usr/bin/env bash
             set -euo pipefail
             echo "mergin branch ${CIRCLE_BRANCH} to master ...."
-            git config --global user.email "circliuser@gmail.com"
-            git config --global user.name "circleci"
             echo "set remote traking"
             git fetch origin
             echo "checkout a new local branch"
