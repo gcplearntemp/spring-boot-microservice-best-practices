@@ -52,6 +52,11 @@ aliases:
       branches:
         only:
           - master
+  - &only_dependabot
+    filters:
+      branches:
+        only:
+          - /dependabot.*/
   - &persist_to_workspace
     persist_to_workspace:
       root: .
@@ -171,6 +176,40 @@ jobs:
       - store_artifacts:
           path: reports
           when: always
+  merge_pr:
+    executor: base-jdk8
+    steps:
+      - checkout
+      - run:
+          name: Merging Pull request automatically
+          command: |
+            #!/usr/bin/env bash
+            set -euo pipefail
+            echo "mergin branch ${CIRCLE_BRANCH} to master ...."
+            git config --global user.email "circliuser@gmail.com"
+            git config --global user.name "circleci"
+            echo "set remote traking"
+            git branch --set-upstream-to=origin/${CIRCLE_BRANCH} ${CIRCLE_BRANCH}
+            echo "pull latest changes"
+            git pull
+            git fetch origin
+            git rebase master
+            echo "Rebasing the master succeeded...."
+            log_message=$(git log -1)
+            echo "checkout master...."
+            git checkout master
+            echo "do git pull"
+            git pull origin master
+            echo "squash and merge ${CIRCLE_BRANCH} to master ...."
+            git merge "${CIRCLE_BRANCH}" --squash
+            echo "commit the changes"
+            git commit
+            echo "push the changes"
+            git push
+            echo "delete pull request branch ${CIRCLE_BRANCH}"
+            git push --delete origin "${CIRCLE_BRANCH}"
+            echo "PR merged successfully..."
+
   helm_deploy:
     executor: helm
     parameters:
@@ -213,84 +252,6 @@ workflows:
   version: 2.1
   workflow-all-jobs:
     jobs:
-      - build:
-          <<: *only_allowed_branches
-          name: Build
-      - test:
-          name: Unit & E2E Tests
-          requires:
-            - Build
-      - gradle_execute_task:
-          name: Jacoco Code Coverage
-          step_name: Check Jacoco code coverage & generate report
-          gradle_task: jacocoTestCoverageVerification
-          artifact_path: build/reports/jacocoHtml
-          requires:
-            - Unit & E2E Tests
-      - gradle_execute_task:
-          name: Checkstyle
-          step_name: Check styling and generate report
-          gradle_task: check
-          artifact_path: build/reports/checkstyle
-          requires:
-            - Build
-      - gradle_execute_task:
-          name: Mutation Tests
-          step_name: Perform Mutation Testing on Unit Tests
-          gradle_task: pitest
-          artifact_path: build/reports/pitest
-          requires:
-            - Build
-      - check_dependency_vulnerability:
-          name: Dependency Vulnerability Checks
-          timeout: 20m
-          requires:
-            - Build
-      - build_and_push_image:
-          <<: *credential_context
-          name: Docker Image build and push
-          requires:
-            - Jacoco Code Coverage
-            - Checkstyle
-            - Mutation Tests
-            - Dependency Vulnerability Checks
-      - check_image_vulnerability:
-          <<: *credential_context
-          name: Image Vulnerability Check
-          requires:
-            - Docker Image build and push
-      - hold:
-          type: approval
-          description: Not desired but added to avoid unintentional deployment
-          name: Manual Approval before Deployment
-          requires:
-            - Image Vulnerability Check
-      - helm_deploy:
-          <<: *credential_context
-          name: Deploy app to K8S
-          release: companieshouse-release
-          requires:
-            - Image Vulnerability Check
-            - Manual Approval before Deployment
-      - health_check:
-          <<: *credential_context
-          name: Health Check
-          requires:
-            - Deploy app to K8S
-      - penetration_test:
-          <<: *credential_context
-          name: Penetration Test
-          requires:
-            - Deploy app to K8S
-  scheduled-vulnerability-check:
-    triggers:
-      - schedule:
-          cron: "0 8 * * *"
-          <<: *only_master
-    jobs:
-      - check_dependency_vulnerability:
-          name: Dependency Vulnerability Checks
-          timeout: 20m
-      - check_image_vulnerability:
-          <<: *credential_context
-          name: Image Vulnerability Check
+      - merge_pr:
+          <<: *only_dependabot
+          name: Merge Pull Request
