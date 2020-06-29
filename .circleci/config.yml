@@ -52,6 +52,11 @@ aliases:
       branches:
         only:
           - master
+  - &only_dependabot
+    filters:
+      branches:
+        only:
+          - /dependabot.*/
   - &persist_to_workspace
     persist_to_workspace:
       root: .
@@ -98,8 +103,8 @@ jobs:
           path: build/test-results/test
           when: always
       - *persist_to_workspace
-#  This is a generic parameterized gradle task execution job.
-#  At the moment it's being used by Jacoco,Checkstyle and Mutation Test jobs
+  #  This is a generic parameterized gradle task execution job.
+  #  At the moment it's being used by Jacoco,Checkstyle and Mutation Test jobs
   gradle_execute_task:
     executor: base-jdk8
     parameters:
@@ -145,6 +150,31 @@ jobs:
       - store_artifacts:
           path: build/reports/dependency-vulnerabilities
           when: always
+  trivy:
+    docker:
+      - image: docker:stable-git
+    steps:
+      - *mount_workspace
+      - setup_remote_docker
+      - run:
+          name: Build image
+          command: docker build -t new-test:0.0.1 -f ci.Dockerfile .
+      - run:
+          name: Install trivy
+          command: |
+            apk add --update-cache --upgrade curl rpm
+            VERSION=$(
+                curl --silent "https://api.github.com/repos/aquasecurity/trivy/releases/latest" | \
+                grep '"tag_name":' | \
+                sed -E 's/.*"v([^"]+)".*/\1/'
+            )
+
+            wget https://github.com/aquasecurity/trivy/releases/download/v${VERSION}/trivy_${VERSION}_Linux-64bit.tar.gz
+            tar zxvf trivy_${VERSION}_Linux-64bit.tar.gz
+            mv trivy /usr/local/bin
+      - run:
+          name: Scan the local image with trivy
+          command: trivy --exit-code 0 --no-progress new-test:0.0.1
   build_and_push_image:
     description: Build Docker Image & Push
     executor: base-jdk8
@@ -171,6 +201,28 @@ jobs:
       - store_artifacts:
           path: reports
           when: always
+  merge_pr:
+    executor: base-jdk8
+    steps:
+      - checkout
+      - add_ssh_keys:
+          fingerprints:
+      - run:
+          name: Merging Pull request automatically
+          command: |
+            #!/usr/bin/env bash
+            set -euo pipefail
+            echo "mergin branch ${CIRCLE_BRANCH} to master ...."
+            echo "set remote traking"
+            git fetch origin
+            echo "checkout a new local branch"
+            git branch --set-upstream-to=origin/${CIRCLE_BRANCH} ${CIRCLE_BRANCH}
+            git merge master
+            git checkout master
+            echo "merging the branch to master"
+            git merge --no-ff ${CIRCLE_BRANCH}
+            git push origin master
+            echo "completes..."
   helm_deploy:
     executor: helm
     parameters:
@@ -216,81 +268,6 @@ workflows:
       - build:
           <<: *only_allowed_branches
           name: Build
-      - test:
-          name: Unit & E2E Tests
+      - trivy:
           requires:
             - Build
-      - gradle_execute_task:
-          name: Jacoco Code Coverage
-          step_name: Check Jacoco code coverage & generate report
-          gradle_task: jacocoTestCoverageVerification
-          artifact_path: build/reports/jacocoHtml
-          requires:
-            - Unit & E2E Tests
-      - gradle_execute_task:
-          name: Checkstyle
-          step_name: Check styling and generate report
-          gradle_task: check
-          artifact_path: build/reports/checkstyle
-          requires:
-            - Build
-      - gradle_execute_task:
-          name: Mutation Tests
-          step_name: Perform Mutation Testing on Unit Tests
-          gradle_task: pitest
-          artifact_path: build/reports/pitest
-          requires:
-            - Build
-      - check_dependency_vulnerability:
-          name: Dependency Vulnerability Checks
-          timeout: 20m
-          requires:
-            - Build
-      - build_and_push_image:
-          <<: *credential_context
-          name: Docker Image build and push
-          requires:
-            - Jacoco Code Coverage
-            - Checkstyle
-            - Mutation Tests
-            - Dependency Vulnerability Checks
-      - check_image_vulnerability:
-          <<: *credential_context
-          name: Image Vulnerability Check
-          requires:
-            - Docker Image build and push
-      - hold:
-          type: approval
-          description: Not desired but added to avoid unintentional deployment
-          name: Manual Approval before Deployment
-          requires:
-            - Image Vulnerability Check
-      - helm_deploy:
-          <<: *credential_context
-          name: Deploy app to K8S
-          release: companieshouse-release
-          requires:
-            - Image Vulnerability Check
-            - Manual Approval before Deployment
-      - health_check:
-          <<: *credential_context
-          name: Health Check
-          requires:
-            - Deploy app to K8S
-      - penetration_test:
-          <<: *credential_context
-          name: Penetration Test
-          requires:
-            - Deploy app to K8S
-  scheduled-vulnerability-check:
-    triggers:
-      - schedule:
-          cron: "0 8 * * *"
-          <<: *only_master
-    jobs:
-      - check_dependency_vulnerability:
-          name: Dependency Vulnerability Checks
-          timeout: 20m
-      - check_image_vulnerability:
-          <<: *credential_context
-          name: Image Vulnerability Check
