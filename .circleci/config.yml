@@ -158,7 +158,7 @@ jobs:
       - setup_remote_docker
       - run:
           name: Build image
-          command: docker build -t new-test:0.0.1 -f ci.Dockerfile .
+          command: docker build -t abhisheksr01/companieshouse:0.0.1 -f ci.Dockerfile .
       - run:
           name: Install trivy
           command: |
@@ -168,13 +168,12 @@ jobs:
                 grep '"tag_name":' | \
                 sed -E 's/.*"v([^"]+)".*/\1/'
             )
-
             wget https://github.com/aquasecurity/trivy/releases/download/v${VERSION}/trivy_${VERSION}_Linux-64bit.tar.gz
             tar zxvf trivy_${VERSION}_Linux-64bit.tar.gz
             mv trivy /usr/local/bin
       - run:
           name: Scan the local image with trivy
-          command: trivy --exit-code 0 --no-progress new-test:0.0.1
+          command: trivy --exit-code 0 --no-progress abhisheksr01/companieshouse:0.0.1
   build_and_push_image:
     description: Build Docker Image & Push
     executor: base-jdk8
