@@ -158,7 +158,11 @@ jobs:
       - setup_remote_docker
       - run:
           name: Docker Image build
-          command: .circleci/scripts/docker-build.sh build_image
+          command: |
+            pwd
+            echo "files in the dir"
+            ls
+            .circleci/scripts/docker-build.sh build_image
       - run:
           name: Scan Image Vulnerability
           command: .circleci/scripts/vulnerability-checks.sh
