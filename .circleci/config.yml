@@ -167,6 +167,9 @@ jobs:
       - run:
           name: Push Image
           command: ./.circleci/scripts/docker-build.sh push_image
+      - store_artifacts:
+          path: reports
+          when: always
 
   build_and_push_image:
     description: Build Docker Image & Push
