@@ -103,8 +103,8 @@ jobs:
           path: build/test-results/test
           when: always
       - *persist_to_workspace
-#  This is a generic parameterized gradle task execution job.
-#  At the moment it's being used by Jacoco,Checkstyle and Mutation Test jobs
+  #  This is a generic parameterized gradle task execution job.
+  #  At the moment it's being used by Jacoco,Checkstyle and Mutation Test jobs
   gradle_execute_task:
     executor: base-jdk8
     parameters:
@@ -150,6 +150,22 @@ jobs:
       - store_artifacts:
           path: build/reports/dependency-vulnerabilities
           when: always
+  image_build_scan_push:
+    docker:
+      - image: docker:stable-git
+    steps:
+      - *mount_workspace
+      - setup_remote_docker
+      - run:
+          name: Docker Image build
+          command: .circleci/scripts/docker-build.sh build_image
+      - run:
+          name: Scan Image Vulnerability
+          command: .circleci/scripts/vulnerability-checks.sh
+      - run:
+          name: Push Image
+          command: .circleci/scripts/docker-build.sh push_image
+
   build_and_push_image:
     description: Build Docker Image & Push
     executor: base-jdk8
@@ -182,7 +198,6 @@ jobs:
       - checkout
       - add_ssh_keys:
           fingerprints:
-            - "18:cf:81:68:07:c3:a7:9a:e3:cf:07:6e:04:68:30:1b"
       - run:
           name: Merging Pull request automatically
           command: |
@@ -241,6 +256,9 @@ workflows:
   version: 2.1
   workflow-all-jobs:
     jobs:
-      - merge_pr:
-          <<: *only_dependabot
-          name: Merge Pull Request
+      - build:
+          <<: *only_allowed_branches
+          name: Build
+      - image_build_scan_push:
+          requires:
+            - Build
