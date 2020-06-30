@@ -159,9 +159,7 @@ jobs:
       - run:
           name: Docker Image build
           command: |
-            pwd
-            echo "files in the dir"
-            ls -la
+            apk add --no-cache bash
             ./.circleci/scripts/docker-build.sh build_image
       - run:
           name: Scan Image Vulnerability
@@ -264,5 +262,6 @@ workflows:
           <<: *only_allowed_branches
           name: Build
       - image_build_scan_push:
+          <<: *credential_context
           requires:
             - Build
